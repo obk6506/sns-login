@@ -18,11 +18,12 @@ const LocationSearch = () => {
   // Google Maps API 로딩 상태 확인
   useEffect(() => {
     const checkGoogleMapsLoaded = () => {
-      if (window.google && window.google.maps) {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        console.log('Google Maps API 로드 완료 확인됨');
         setGoogleMapsLoaded(true);
         setError(null);
       } else {
-        // API가 아직 로드되지 않았으면 1초 후 다시 확인
+        console.log('Google Maps API 로드 대기 중...');
         setTimeout(checkGoogleMapsLoaded, 1000);
       }
     };
@@ -32,7 +33,9 @@ const LocationSearch = () => {
     // 컴포넌트 언마운트 시 마커 정리
     return () => {
       if (markers.length > 0) {
-        markers.forEach(marker => marker.setMap(null));
+        markers.forEach(marker => {
+          if (marker) marker.setMap(null);
+        });
       }
     };
   }, [markers]);
@@ -45,20 +48,21 @@ const LocationSearch = () => {
     try {
       // 위치 정보 가져오기
       const currentLocation = await getCurrentLocation();
+      console.log('가져온 위치 정보:', currentLocation);
       setLocation(currentLocation);
       
       // Google Maps API가 로드되었는지 확인
       if (googleMapsLoaded) {
+        console.log('Google Maps API 로드됨, 지도 초기화 시작');
         // 지도 초기화
         initMap(currentLocation);
-        
-        // 주변 장소 검색
-        searchNearbyPlaces(currentLocation);
       } else {
+        console.error('Google Maps API가 로드되지 않았습니다.');
         setLoading(false);
         setError('Google Maps API가 로드되지 않았습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해주세요.');
       }
     } catch (err) {
+      console.error('위치 정보 가져오기 오류:', err);
       setError(err.message);
       setLoading(false);
     }
@@ -67,12 +71,16 @@ const LocationSearch = () => {
   // 지도 초기화
   const initMap = (location) => {
     if (!window.google || !window.google.maps) {
+      console.error('Google Maps API가 로드되지 않았습니다.');
       setError('Google Maps API가 로드되지 않았습니다.');
       setLoading(false);
       return;
     }
     
     try {
+      console.log('지도 초기화 시작:', location);
+      
+      // 지도 옵션 설정
       const mapOptions = {
         center: { lat: location.latitude, lng: location.longitude },
         zoom: 15,
@@ -81,10 +89,12 @@ const LocationSearch = () => {
         streetViewControl: false
       };
       
+      // 지도 생성
       const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
+      console.log('지도 생성 완료');
       
       // 현재 위치 마커 추가
-      new window.google.maps.Marker({
+      const currentLocationMarker = new window.google.maps.Marker({
         position: { lat: location.latitude, lng: location.longitude },
         map: newMap,
         title: '현재 위치',
@@ -98,28 +108,45 @@ const LocationSearch = () => {
         }
       });
       
+      console.log('현재 위치 마커 추가 완료');
       setMap(newMap);
+      
+      // 지도 로드 완료 후 주변 장소 검색
+      newMap.addListener('tilesloaded', () => {
+        console.log('지도 타일 로드 완료, 주변 장소 검색 시작');
+        if (!places.length) {
+          searchNearbyPlaces(location, newMap);
+        }
+      });
+      
     } catch (error) {
       console.error('지도 초기화 오류:', error);
-      setError('지도를 초기화하는 중 오류가 발생했습니다.');
+      setError('지도를 초기화하는 중 오류가 발생했습니다: ' + error.message);
       setLoading(false);
     }
   };
   
   // 주변 장소 검색
-  const searchNearbyPlaces = (location) => {
-    if (!window.google || !window.google.maps || !map) {
+  const searchNearbyPlaces = (location, mapInstance = null) => {
+    const mapToUse = mapInstance || map;
+    
+    if (!window.google || !window.google.maps || !window.google.maps.places || !mapToUse) {
+      console.error('Google Maps Places API가 로드되지 않았거나 지도가 초기화되지 않았습니다.');
       setError('Google Maps API가 로드되지 않았습니다.');
       setLoading(false);
       return;
     }
     
     try {
+      console.log('주변 장소 검색 시작:', location, placeType, searchRadius);
+      
       // 이전 마커 제거
-      markers.forEach(marker => marker.setMap(null));
+      markers.forEach(marker => {
+        if (marker) marker.setMap(null);
+      });
       setMarkers([]);
       
-      const service = new window.google.maps.places.PlacesService(map);
+      const service = new window.google.maps.places.PlacesService(mapToUse);
       
       const request = {
         location: { lat: location.latitude, lng: location.longitude },
@@ -132,11 +159,14 @@ const LocationSearch = () => {
         request.keyword = searchKeyword.trim();
       }
       
+      console.log('Places API 요청:', request);
+      
       service.nearbySearch(request, (results, status) => {
+        console.log('Places API 응답:', status, results);
         setLoading(false);
         
         if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-          console.log('검색 결과:', results);
+          console.log('검색 결과:', results.length, '개 장소 발견');
           
           // 결과 처리
           const placesData = results.map(place => ({
@@ -154,34 +184,41 @@ const LocationSearch = () => {
           
           // 마커 추가
           const newMarkers = placesData.map(place => {
-            const marker = new window.google.maps.Marker({
-              position: { lat: place.location.lat, lng: place.location.lng },
-              map: map,
-              title: place.name,
-              animation: window.google.maps.Animation.DROP
-            });
-            
-            // 정보창 추가
-            const infoWindow = new window.google.maps.InfoWindow({
-              content: `
-                <div>
-                  <h3>${place.name}</h3>
-                  <p>${place.vicinity}</p>
-                  ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
-                </div>
-              `
-            });
-            
-            marker.addListener('click', () => {
-              infoWindow.open(map, marker);
-            });
-            
-            return marker;
-          });
+            try {
+              const marker = new window.google.maps.Marker({
+                position: { lat: place.location.lat, lng: place.location.lng },
+                map: mapToUse,
+                title: place.name,
+                animation: window.google.maps.Animation.DROP
+              });
+              
+              // 정보창 추가
+              const infoWindow = new window.google.maps.InfoWindow({
+                content: `
+                  <div>
+                    <h3>${place.name}</h3>
+                    <p>${place.vicinity}</p>
+                    ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
+                  </div>
+                `
+              });
+              
+              marker.addListener('click', () => {
+                infoWindow.open(mapToUse, marker);
+              });
+              
+              return marker;
+            } catch (err) {
+              console.error('마커 생성 오류:', err);
+              return null;
+            }
+          }).filter(marker => marker !== null);
           
           setMarkers(newMarkers);
+          console.log('마커 추가 완료:', newMarkers.length);
+          
         } else {
-          console.error('장소 검색 오류:', status);
+          console.error('장소 검색 오류 또는 결과 없음:', status);
           if (status === 'ZERO_RESULTS') {
             setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
           } else {
@@ -192,7 +229,7 @@ const LocationSearch = () => {
       });
     } catch (error) {
       console.error('장소 검색 중 오류 발생:', error);
-      setError('장소 검색 중 오류가 발생했습니다.');
+      setError('장소 검색 중 오류가 발생했습니다: ' + error.message);
       setLoading(false);
     }
   };
@@ -214,9 +251,12 @@ const LocationSearch = () => {
   
   // 검색 버튼 클릭
   const handleSearch = () => {
-    if (location) {
+    if (location && map) {
       setLoading(true);
       searchNearbyPlaces(location);
+    } else if (location && !map) {
+      setLoading(true);
+      initMap(location);
     }
   };
   
@@ -227,7 +267,7 @@ const LocationSearch = () => {
       map.setZoom(17);
       
       // 해당 마커 찾기
-      const marker = markers.find(m => m.getTitle() === place.name);
+      const marker = markers.find(m => m && m.getTitle() === place.name);
       if (marker) {
         // 마커 애니메이션 및 정보창 열기
         marker.setAnimation(window.google.maps.Animation.BOUNCE);
@@ -295,7 +335,7 @@ const LocationSearch = () => {
           {loading ? '검색 중...' : location ? '다시 검색하기' : '내 주변 검색하기'}
         </button>
         
-        {location && (
+        {location && map && (
           <button 
             onClick={() => {
               if (map) {
@@ -320,6 +360,7 @@ const LocationSearch = () => {
       {location && (
         <div className="location-info">
           <p>현재 위치: 위도 {location.latitude.toFixed(6)}, 경도 {location.longitude.toFixed(6)}</p>
+          {location.accuracy && <p>정확도: {Math.round(location.accuracy)}m</p>}
         </div>
       )}
       
