@@ -161,6 +161,38 @@ const LocationSearch = () => {
       
       console.log('Places API 요청:', request);
       
+      // 지오코딩으로 현재 위치의 주소 정보 가져오기
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode(
+        { location: { lat: location.latitude, lng: location.longitude } },
+        (results, status) => {
+          if (status === 'OK' && results[0]) {
+            console.log('현재 위치 주소:', results[0]);
+            
+            // 주소 컴포넌트에서 동 정보 추출
+            const addressComponents = results[0].address_components;
+            const dongComponent = addressComponents.find(
+              component => component.types.includes('sublocality_level_2') || 
+                          component.types.includes('sublocality')
+            );
+            
+            if (dongComponent) {
+              console.log('현재 동네:', dongComponent.long_name);
+              setLocation(prev => ({
+                ...prev,
+                address: results[0].formatted_address,
+                dong: dongComponent.long_name
+              }));
+            } else {
+              setLocation(prev => ({
+                ...prev,
+                address: results[0].formatted_address
+              }));
+            }
+          }
+        }
+      );
+      
       service.nearbySearch(request, (results, status) => {
         console.log('Places API 응답:', status, results);
         setLoading(false);
@@ -177,7 +209,8 @@ const LocationSearch = () => {
             location: {
               lat: place.geometry.location.lat(),
               lng: place.geometry.location.lng()
-            }
+            },
+            types: place.types || []
           }));
           
           setPlaces(placesData);
@@ -361,6 +394,8 @@ const LocationSearch = () => {
         <div className="location-info">
           <p>현재 위치: 위도 {location.latitude.toFixed(6)}, 경도 {location.longitude.toFixed(6)}</p>
           {location.accuracy && <p>정확도: {Math.round(location.accuracy)}m</p>}
+          {location.dong && <p>동네: {location.dong}</p>}
+          {location.address && <p>주소: {location.address}</p>}
         </div>
       )}
       
