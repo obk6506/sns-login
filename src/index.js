@@ -15,10 +15,27 @@ const loadGoogleMapsAPI = () => {
     return;
   }
 
+  // 기존 스크립트 요소 가져오기
   const script = document.getElementById('google-maps-api');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ko`;
+  if (!script) {
+    console.error('Google Maps API 스크립트 요소를 찾을 수 없습니다.');
+    return;
+  }
+
+  // API 키 설정 및 스크립트 로드
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ko&callback=initMap`;
   script.async = true;
   script.defer = true;
+
+  // 콜백 함수 정의
+  window.initMap = function() {
+    console.log('Google Maps API가 성공적으로 로드되었습니다.');
+  };
+
+  // 로드 오류 처리
+  script.onerror = function() {
+    console.error('Google Maps API 로드 중 오류가 발생했습니다.');
+  };
 };
 
 // API 로드

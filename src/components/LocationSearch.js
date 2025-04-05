@@ -12,21 +12,52 @@ const LocationSearch = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const mapRef = useRef(null);
+  
+  // Google Maps API 로딩 상태 확인
+  useEffect(() => {
+    const checkGoogleMapsLoaded = () => {
+      if (window.google && window.google.maps) {
+        setGoogleMapsLoaded(true);
+        setError(null);
+      } else {
+        // API가 아직 로드되지 않았으면 1초 후 다시 확인
+        setTimeout(checkGoogleMapsLoaded, 1000);
+      }
+    };
+    
+    checkGoogleMapsLoaded();
+    
+    // 컴포넌트 언마운트 시 마커 정리
+    return () => {
+      if (markers.length > 0) {
+        markers.forEach(marker => marker.setMap(null));
+      }
+    };
+  }, [markers]);
   
   // 위치 정보 가져오기 및 지도 초기화
   const fetchLocation = async () => {
     setLoading(true);
     setError(null);
+    
     try {
+      // 위치 정보 가져오기
       const currentLocation = await getCurrentLocation();
       setLocation(currentLocation);
       
-      // 지도 초기화
-      initMap(currentLocation);
-      
-      // 주변 장소 검색
-      searchNearbyPlaces(currentLocation);
+      // Google Maps API가 로드되었는지 확인
+      if (googleMapsLoaded) {
+        // 지도 초기화
+        initMap(currentLocation);
+        
+        // 주변 장소 검색
+        searchNearbyPlaces(currentLocation);
+      } else {
+        setLoading(false);
+        setError('Google Maps API가 로드되지 않았습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해주세요.');
+      }
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -41,32 +72,38 @@ const LocationSearch = () => {
       return;
     }
     
-    const mapOptions = {
-      center: { lat: location.latitude, lng: location.longitude },
-      zoom: 15,
-      mapTypeControl: false,
-      fullscreenControl: false,
-      streetViewControl: false
-    };
-    
-    const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
-    
-    // 현재 위치 마커 추가
-    new window.google.maps.Marker({
-      position: { lat: location.latitude, lng: location.longitude },
-      map: newMap,
-      title: '현재 위치',
-      icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#4285F4',
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 2
-      }
-    });
-    
-    setMap(newMap);
+    try {
+      const mapOptions = {
+        center: { lat: location.latitude, lng: location.longitude },
+        zoom: 15,
+        mapTypeControl: false,
+        fullscreenControl: false,
+        streetViewControl: false
+      };
+      
+      const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
+      
+      // 현재 위치 마커 추가
+      new window.google.maps.Marker({
+        position: { lat: location.latitude, lng: location.longitude },
+        map: newMap,
+        title: '현재 위치',
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#4285F4',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2
+        }
+      });
+      
+      setMap(newMap);
+    } catch (error) {
+      console.error('지도 초기화 오류:', error);
+      setError('지도를 초기화하는 중 오류가 발생했습니다.');
+      setLoading(false);
+    }
   };
   
   // 주변 장소 검색
@@ -77,77 +114,87 @@ const LocationSearch = () => {
       return;
     }
     
-    // 이전 마커 제거
-    markers.forEach(marker => marker.setMap(null));
-    setMarkers([]);
-    
-    const service = new window.google.maps.places.PlacesService(map);
-    
-    const request = {
-      location: { lat: location.latitude, lng: location.longitude },
-      radius: searchRadius,
-      type: placeType
-    };
-    
-    // 키워드가 있으면 추가
-    if (searchKeyword && searchKeyword.trim() !== '') {
-      request.keyword = searchKeyword.trim();
-    }
-    
-    service.nearbySearch(request, (results, status) => {
-      setLoading(false);
+    try {
+      // 이전 마커 제거
+      markers.forEach(marker => marker.setMap(null));
+      setMarkers([]);
       
-      if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-        console.log('검색 결과:', results);
-        
-        // 결과 처리
-        const placesData = results.map(place => ({
-          id: place.place_id,
-          name: place.name,
-          vicinity: place.vicinity || place.formatted_address || '주소 정보 없음',
-          rating: place.rating || 0,
-          location: {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng()
-          }
-        }));
-        
-        setPlaces(placesData);
-        
-        // 마커 추가
-        const newMarkers = placesData.map(place => {
-          const marker = new window.google.maps.Marker({
-            position: { lat: place.location.lat, lng: place.location.lng },
-            map: map,
-            title: place.name,
-            animation: window.google.maps.Animation.DROP
-          });
-          
-          // 정보창 추가
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div>
-                <h3>${place.name}</h3>
-                <p>${place.vicinity}</p>
-                ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
-              </div>
-            `
-          });
-          
-          marker.addListener('click', () => {
-            infoWindow.open(map, marker);
-          });
-          
-          return marker;
-        });
-        
-        setMarkers(newMarkers);
-      } else {
-        console.error('장소 검색 오류:', status);
-        setError('주변 장소를 찾을 수 없습니다.');
-        setPlaces([]);
+      const service = new window.google.maps.places.PlacesService(map);
+      
+      const request = {
+        location: { lat: location.latitude, lng: location.longitude },
+        radius: searchRadius,
+        type: placeType
+      };
+      
+      // 키워드가 있으면 추가
+      if (searchKeyword && searchKeyword.trim() !== '') {
+        request.keyword = searchKeyword.trim();
       }
-    });
+      
+      service.nearbySearch(request, (results, status) => {
+        setLoading(false);
+        
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+          console.log('검색 결과:', results);
+          
+          // 결과 처리
+          const placesData = results.map(place => ({
+            id: place.place_id,
+            name: place.name,
+            vicinity: place.vicinity || place.formatted_address || '주소 정보 없음',
+            rating: place.rating || 0,
+            location: {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng()
+            }
+          }));
+          
+          setPlaces(placesData);
+          
+          // 마커 추가
+          const newMarkers = placesData.map(place => {
+            const marker = new window.google.maps.Marker({
+              position: { lat: place.location.lat, lng: place.location.lng },
+              map: map,
+              title: place.name,
+              animation: window.google.maps.Animation.DROP
+            });
+            
+            // 정보창 추가
+            const infoWindow = new window.google.maps.InfoWindow({
+              content: `
+                <div>
+                  <h3>${place.name}</h3>
+                  <p>${place.vicinity}</p>
+                  ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
+                </div>
+              `
+            });
+            
+            marker.addListener('click', () => {
+              infoWindow.open(map, marker);
+            });
+            
+            return marker;
+          });
+          
+          setMarkers(newMarkers);
+        } else {
+          console.error('장소 검색 오류:', status);
+          if (status === 'ZERO_RESULTS') {
+            setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
+          } else {
+            setError('주변 장소를 찾을 수 없습니다. 상태: ' + status);
+          }
+          setPlaces([]);
+        }
+      });
+    } catch (error) {
+      console.error('장소 검색 중 오류 발생:', error);
+      setError('장소 검색 중 오류가 발생했습니다.');
+      setLoading(false);
+    }
   };
   
   // 장소 유형 변경 시 재검색
@@ -265,8 +312,8 @@ const LocationSearch = () => {
       
       {error && (
         <div className="error-message">
-          <p>오류가 발생했습니다: {error}</p>
-          <p>위치 정보 접근 권한을 허용해주세요.</p>
+          <p>{error}</p>
+          {error.includes('위치 정보') && <p>위치 정보 접근 권한을 허용해주세요.</p>}
         </div>
       )}
       
@@ -293,7 +340,7 @@ const LocationSearch = () => {
             ))}
           </ul>
         </div>
-      ) : location && !loading ? (
+      ) : location && !loading && !error ? (
         <div className="no-results">
           <p>검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.</p>
         </div>
