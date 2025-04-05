@@ -18,6 +18,7 @@ function App() {
   const [showLocationSearch, setShowLocationSearch] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // 로그인 상태 확인
   useEffect(() => {
@@ -42,10 +43,12 @@ function App() {
             setPaymentHistory(payments);
           } catch (paymentError) {
             console.error('결제 내역 가져오기 오류:', paymentError);
+            setError('결제 내역을 불러오는 중 오류가 발생했습니다.');
           }
         }
       } catch (error) {
         console.error('인증 상태 확인 오류:', error);
+        setError('인증 상태를 확인하는 중 오류가 발생했습니다.');
       } finally {
         setLoading(false);
       }
@@ -57,6 +60,7 @@ function App() {
   const handleLoginSuccess = async (response) => {
     if (!response || !response.user) {
       console.error('로그인 응답에 사용자 정보가 없습니다.');
+      setError('로그인 응답에 사용자 정보가 없습니다.');
       return;
     }
     
@@ -83,7 +87,7 @@ function App() {
       }
     } catch (error) {
       console.error('로그인 처리 오류:', error);
-      alert('로그인에 실패했습니다. 다시 시도해주세요.');
+      setError('로그인 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -112,8 +116,66 @@ function App() {
     setShowPaymentComplete(true);
   };
 
+  // 다양한 날짜 형식 처리
+  const formatDate = (dateValue) => {
+    try {
+      // null이나 undefined인 경우
+      if (!dateValue) {
+        return '날짜 정보 없음';
+      }
+      
+      let date;
+      
+      // Firestore Timestamp인 경우
+      if (dateValue && typeof dateValue.toDate === 'function') {
+        date = dateValue.toDate();
+      } 
+      // Date 객체인 경우
+      else if (dateValue instanceof Date) {
+        date = dateValue;
+      } 
+      // 숫자(타임스탬프)인 경우
+      else if (typeof dateValue === 'number') {
+        date = new Date(dateValue);
+      }
+      // 문자열인 경우
+      else if (typeof dateValue === 'string') {
+        date = new Date(dateValue);
+      }
+      // 그 외의 경우
+      else {
+        return '유효하지 않은 날짜';
+      }
+      
+      // 유효한 날짜인지 확인
+      if (isNaN(date.getTime())) {
+        return '유효하지 않은 날짜';
+      }
+      
+      // 날짜 포맷팅
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day} ${hour}:${minute}`;
+    } catch (error) {
+      console.error('날짜 형식 변환 오류:', error);
+      return '날짜 변환 오류';
+    }
+  };
+
   if (loading) {
     return <div className="loading">로딩 중...</div>;
+  }
+
+  if (error) {
+    return <div className="error-container">
+      <h2>오류가 발생했습니다</h2>
+      <p>{error}</p>
+      <button onClick={() => window.location.reload()}>새로고침</button>
+    </div>;
   }
 
   return (
@@ -155,9 +217,9 @@ function App() {
                     <ul>
                       {paymentHistory.map((payment, index) => (
                         <li key={index}>
-                          <p>결제 금액: {payment.amount.toLocaleString()}원</p>
-                          <p>결제 방법: {payment.paymentMethod}</p>
-                          <p>결제 일시: {new Date(payment.createdAt.toDate()).toLocaleString()}</p>
+                          <p>결제 금액: {payment.amount ? payment.amount.toLocaleString() : 0}원</p>
+                          <p>결제 방법: {payment.paymentMethod || '정보 없음'}</p>
+                          <p>결제 일시: {formatDate(payment.createdAt)}</p>
                         </li>
                       ))}
                     </ul>
@@ -181,6 +243,8 @@ function App() {
                   // 결제 내역 새로고침
                   getUserPayments(user.sub).then(payments => {
                     setPaymentHistory(payments);
+                  }).catch(error => {
+                    console.error('결제 내역 새로고침 오류:', error);
                   });
                 }}
               />
