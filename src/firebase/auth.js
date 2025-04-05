@@ -12,6 +12,13 @@ import { app } from './config';
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+// 계정 선택 창이 항상 표시되지 않도록 설정
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+  // 한 번 로그인한 계정 정보를 저장하도록 설정
+  auth_flow_type: 'implicit'
+});
+
 // 구글 로그인 처리
 export const signInWithGoogle = async () => {
   try {
