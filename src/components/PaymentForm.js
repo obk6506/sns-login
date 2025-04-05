@@ -172,7 +172,7 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
           value={orderInfo.amount}
           onChange={handleChange}
         >
-          <option value="5000">5,000원</option>
+          <option value="1">1원</option>
           <option value="10000">10,000원</option>
           <option value="20000">20,000원</option>
           <option value="50000">50,000원</option>
