@@ -29,10 +29,12 @@ export const searchNearbyPlaces = async (location, type = 'restaurant', radius =
   try {
     const API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
     
-    // API 키가 없거나 'YOUR_API_KEY_HERE'인 경우 테스트 데이터 반환
-    if (!API_KEY || API_KEY === 'YOUR_API_KEY_HERE') {
-      console.log('API 키가 설정되지 않았습니다. 테스트 데이터를 반환합니다.');
-      return getMockPlaces(location, type);
+    // 테스트 모드 활성화 - API 키 제한 문제로 인해 항상 테스트 데이터 사용
+    const useTestData = true; // 실제 API 호출이 필요하면 false로 변경
+    
+    if (!API_KEY || API_KEY === 'YOUR_API_KEY_HERE' || useTestData) {
+      console.log('테스트 데이터를 사용합니다.');
+      return getMockPlaces(location, type, keyword);
     }
     
     // 기본 URL 파라미터 설정
@@ -83,42 +85,87 @@ export const searchNearbyPlaces = async (location, type = 'restaurant', radius =
   } catch (error) {
     console.error('장소 검색 중 오류 발생:', error);
     // 오류 발생 시 테스트 데이터 반환
-    return getMockPlaces(location, type);
+    return getMockPlaces(location, type, keyword);
   }
 };
 
 // 테스트용 데이터 생성 함수
-const getMockPlaces = (location, type) => {
+const getMockPlaces = (location, type, keyword = '') => {
   // 장소 유형에 따라 다른 테스트 데이터 반환
   const mockData = {
     restaurant: [
-      { id: '1', name: '맛있는 식당', vicinity: '현재 위치 근처', rating: 4.5 },
-      { id: '2', name: '행복한 식당', vicinity: '현재 위치 근처', rating: 4.2 },
-      { id: '3', name: '건강한 식당', vicinity: '현재 위치 근처', rating: 4.0 }
+      { id: '1', name: '맛있는 식당', vicinity: '광주 서구 123-45', rating: 4.5 },
+      { id: '2', name: '행복한 식당', vicinity: '광주 서구 456-78', rating: 4.2 },
+      { id: '3', name: '건강한 식당', vicinity: '광주 서구 789-10', rating: 4.0 },
+      { id: '4', name: '24시간 식당', vicinity: '광주 서구 101-11', rating: 3.8 },
+      { id: '5', name: '가족 식당', vicinity: '광주 서구 121-31', rating: 4.1 }
     ],
     cafe: [
-      { id: '4', name: '아늑한 카페', vicinity: '현재 위치 근처', rating: 4.7 },
-      { id: '5', name: '조용한 카페', vicinity: '현재 위치 근처', rating: 4.3 },
-      { id: '6', name: '분위기 좋은 카페', vicinity: '현재 위치 근처', rating: 4.1 }
+      { id: '6', name: '아늑한 카페', vicinity: '광주 서구 141-51', rating: 4.7 },
+      { id: '7', name: '조용한 카페', vicinity: '광주 서구 161-71', rating: 4.3 },
+      { id: '8', name: '분위기 좋은 카페', vicinity: '광주 서구 181-91', rating: 4.1 },
+      { id: '9', name: '24시간 카페', vicinity: '광주 서구 202-02', rating: 3.9 },
+      { id: '10', name: '디저트 카페', vicinity: '광주 서구 222-22', rating: 4.4 }
     ],
     hospital: [
-      { id: '7', name: '종합 병원', vicinity: '현재 위치 근처', rating: 4.0 },
-      { id: '8', name: '24시 응급실', vicinity: '현재 위치 근처', rating: 4.5 },
-      { id: '9', name: '가정의학과', vicinity: '현재 위치 근처', rating: 4.2 }
+      { id: '11', name: '종합 병원', vicinity: '광주 서구 242-42', rating: 4.0 },
+      { id: '12', name: '24시 응급실', vicinity: '광주 서구 262-62', rating: 4.5 },
+      { id: '13', name: '가정의학과', vicinity: '광주 서구 282-82', rating: 4.2 },
+      { id: '14', name: '내과 의원', vicinity: '광주 서구 303-03', rating: 3.8 },
+      { id: '15', name: '피부과 의원', vicinity: '광주 서구 323-23', rating: 4.1 }
+    ],
+    pharmacy: [
+      { id: '16', name: '24시간 약국', vicinity: '광주 서구 343-43', rating: 4.3 },
+      { id: '17', name: '건강 약국', vicinity: '광주 서구 363-63', rating: 4.0 },
+      { id: '18', name: '행복 약국', vicinity: '광주 서구 383-83', rating: 3.9 },
+      { id: '19', name: '종합 약국', vicinity: '광주 서구 404-04', rating: 4.2 },
+      { id: '20', name: '편의 약국', vicinity: '광주 서구 424-24', rating: 3.7 }
+    ],
+    convenience_store: [
+      { id: '21', name: 'CU 편의점', vicinity: '광주 서구 444-44', rating: 3.8 },
+      { id: '22', name: 'GS25 편의점', vicinity: '광주 서구 464-64', rating: 3.9 },
+      { id: '23', name: '세븐일레븐 편의점', vicinity: '광주 서구 484-84', rating: 3.7 },
+      { id: '24', name: '이마트24 편의점', vicinity: '광주 서구 505-05', rating: 3.8 },
+      { id: '25', name: '미니스톱 편의점', vicinity: '광주 서구 525-25', rating: 3.6 }
+    ],
+    bank: [
+      { id: '26', name: '국민은행', vicinity: '광주 서구 545-45', rating: 3.9 },
+      { id: '27', name: '신한은행', vicinity: '광주 서구 565-65', rating: 4.0 },
+      { id: '28', name: '우리은행', vicinity: '광주 서구 585-85', rating: 3.8 },
+      { id: '29', name: '하나은행', vicinity: '광주 서구 606-06', rating: 3.9 },
+      { id: '30', name: '농협은행', vicinity: '광주 서구 626-26', rating: 3.7 }
+    ],
+    shopping_mall: [
+      { id: '31', name: '롯데백화점', vicinity: '광주 서구 646-46', rating: 4.2 },
+      { id: '32', name: '신세계백화점', vicinity: '광주 서구 666-66', rating: 4.3 },
+      { id: '33', name: '이마트', vicinity: '광주 서구 686-86', rating: 4.0 },
+      { id: '34', name: '홈플러스', vicinity: '광주 서구 707-07', rating: 3.9 },
+      { id: '35', name: '코스트코', vicinity: '광주 서구 727-27', rating: 4.4 }
     ],
     veterinary_care: [
-      { id: '10', name: '행복 동물병원', vicinity: '현재 위치 근처', rating: 4.5 },
-      { id: '11', name: '건강한 동물병원', vicinity: '현재 위치 근처', rating: 4.2 },
-      { id: '12', name: '24시 동물병원', vicinity: '현재 위치 근처', rating: 4.7 }
+      { id: '36', name: '행복 동물병원', vicinity: '광주 서구 747-47', rating: 4.5 },
+      { id: '37', name: '건강한 동물병원', vicinity: '광주 서구 767-67', rating: 4.2 },
+      { id: '38', name: '24시 동물병원', vicinity: '광주 서구 787-87', rating: 4.7 },
+      { id: '39', name: '종합 동물병원', vicinity: '광주 서구 808-08', rating: 4.3 },
+      { id: '40', name: '펫 클리닉', vicinity: '광주 서구 828-28', rating: 4.1 }
     ]
   };
   
   // 요청한 유형의 데이터가 없으면 기본 데이터 사용
-  const places = mockData[type] || mockData.restaurant;
+  let places = mockData[type] || mockData.restaurant;
+  
+  // 키워드가 있으면 필터링
+  if (keyword && keyword.trim() !== '') {
+    const searchKeyword = keyword.trim().toLowerCase();
+    places = places.filter(place => 
+      place.name.toLowerCase().includes(searchKeyword) || 
+      place.vicinity.toLowerCase().includes(searchKeyword)
+    );
+  }
   
   // 각 장소에 위치와 거리 정보 추가
   return places.map((place, index) => {
-    // 각 장소마다 약간 다른 위치 설정
+    // 각 장소마다 약간 다른 위치 설정 (실제 위치 기반)
     const offset = 0.001 * (index + 1);
     const placeLocation = {
       lat: location.latitude + (Math.random() > 0.5 ? offset : -offset),
