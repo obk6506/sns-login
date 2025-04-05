@@ -6,12 +6,14 @@ import Profile from './components/Profile';
 import PaymentForm from './components/PaymentForm';
 import PaymentComplete from './components/PaymentComplete';
 import PaymentModal from './components/PaymentModal';
+import LocationSearch from './components/LocationSearch';
 
 function App() {
   const [user, setUser] = useState(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [showPaymentComplete, setShowPaymentComplete] = useState(false);
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
 
   const handleLoginSuccess = (response) => {
     const token = response.credential;
@@ -30,6 +32,7 @@ function App() {
     setUser(null);
     setShowPaymentForm(false);
     setShowPaymentComplete(false);
+    setShowLocationSearch(false);
     setPaymentInfo(null);
   };
 
@@ -41,6 +44,10 @@ function App() {
 
   const handleClosePaymentComplete = () => {
     setShowPaymentComplete(false);
+  };
+
+  const toggleLocationSearch = () => {
+    setShowLocationSearch(!showLocationSearch);
   };
 
   return (
@@ -60,8 +67,21 @@ function App() {
               >
                 결제하기
               </button>
+              <button 
+                className="location-button"
+                onClick={toggleLocationSearch}
+              >
+                {showLocationSearch ? '위치 검색 닫기' : '위치 검색 열기'}
+              </button>
               <LogoutButton onLogout={handleLogout} />
             </div>
+            
+            {/* 위치 검색 섹션 */}
+            {showLocationSearch && (
+              <div className="location-section">
+                <LocationSearch />
+              </div>
+            )}
             
             {/* 결제 폼 모달 */}
             <PaymentModal 
