@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getCurrentLocation } from '../utils/location';
+import { saveFavoritePlace, getUserFavoritePlaces } from '../firebase/firestore';
 import './LocationSearch.css';
 
-const LocationSearch = () => {
+const LocationSearch = ({ user }) => {
   const [location, setLocation] = useState(null);
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,6 +14,8 @@ const LocationSearch = () => {
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const [favoritePlaces, setFavoritePlaces] = useState([]);
+  const [showFavorites, setShowFavorites] = useState(false);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -35,6 +38,24 @@ const LocationSearch = () => {
       }
     };
   }, [markers]);
+
+  // 사용자의 즐겨찾기 장소 불러오기
+  useEffect(() => {
+    if (user && user.sub) {
+      loadFavoritePlaces();
+    }
+  }, [user]);
+
+  const loadFavoritePlaces = async () => {
+    if (!user || !user.sub) return;
+    
+    try {
+      const places = await getUserFavoritePlaces(user.sub);
+      setFavoritePlaces(places);
+    } catch (error) {
+      console.error('즐겨찾기 장소 로드 오류:', error);
+    }
+  };
 
   const fetchLocation = async () => {
     setLoading(true);
@@ -95,6 +116,7 @@ const LocationSearch = () => {
           searchNearbyPlaces(location, newMap);
         }
       });
+
     } catch (error) {
       setError('지도를 초기화하는 중 오류가 발생했습니다: ' + error.message);
       setLoading(false);
@@ -203,6 +225,7 @@ const LocationSearch = () => {
           }).filter(marker => marker !== null);
 
           setMarkers(newMarkers);
+
         } else {
           if (status === 'ZERO_RESULTS') {
             setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
@@ -255,6 +278,47 @@ const LocationSearch = () => {
         window.google.maps.event.trigger(marker, 'click');
       }
     }
+  };
+
+  // 장소를 즐겨찾기에 추가
+  const addToFavorites = async (place) => {
+    if (!user || !user.sub) {
+      alert('즐겨찾기를 저장하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      // 이미 즐겨찾기에 있는지 확인
+      const isAlreadyFavorite = favoritePlaces.some(fav => fav.placeId === place.id);
+      
+      if (isAlreadyFavorite) {
+        alert('이미 즐겨찾기에 추가된 장소입니다.');
+        return;
+      }
+
+      const placeData = {
+        placeId: place.id,
+        name: place.name,
+        vicinity: place.vicinity,
+        rating: place.rating,
+        location: place.location,
+        types: place.types
+      };
+
+      await saveFavoritePlace(user.sub, placeData);
+      alert('즐겨찾기에 추가되었습니다.');
+      
+      // 즐겨찾기 목록 갱신
+      loadFavoritePlaces();
+    } catch (error) {
+      console.error('즐겨찾기 저장 오류:', error);
+      alert('즐겨찾기 저장에 실패했습니다.');
+    }
+  };
+
+  // 즐겨찾기 목록 표시 토글
+  const toggleFavorites = () => {
+    setShowFavorites(!showFavorites);
   };
 
   return (
@@ -324,6 +388,15 @@ const LocationSearch = () => {
             현재 위치로 돌아가기
           </button>
         )}
+        
+        {user && (
+          <button 
+            onClick={toggleFavorites}
+            className="favorites-button"
+          >
+            {showFavorites ? '검색 결과 보기' : '즐겨찾기 보기'}
+          </button>
+        )}
       </div>
 
       {error && (
@@ -346,24 +419,53 @@ const LocationSearch = () => {
         <div ref={mapRef} className="map"></div>
       </div>
 
-      {places.length > 0 ? (
-        <div className="places-list">
-          <h3>검색 결과 ({places.length}개)</h3>
-          <ul>
-            {places.map(place => (
-              <li key={place.id} className="place-item" onClick={() => handlePlaceClick(place)}>
-                <h4>{place.name}</h4>
-                <p>주소: {place.vicinity}</p>
-                {place.rating ? <p>평점: {place.rating} ⭐</p> : null}
-              </li>
-            ))}
-          </ul>
+      {showFavorites ? (
+        <div className="places-list favorites-list">
+          <h3>즐겨찾기 ({favoritePlaces.length}개)</h3>
+          {favoritePlaces.length > 0 ? (
+            <ul>
+              {favoritePlaces.map(place => (
+                <li key={place.id} className="place-item" onClick={() => handlePlaceClick(place)}>
+                  <h4>{place.name}</h4>
+                  <p>주소: {place.vicinity}</p>
+                  {place.rating ? <p>평점: {place.rating} ⭐</p> : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>저장된 즐겨찾기가 없습니다.</p>
+          )}
         </div>
-      ) : location && !loading && !error ? (
-        <div className="no-results">
-          <p>검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.</p>
-        </div>
-      ) : null}
+      ) : (
+        places.length > 0 ? (
+          <div className="places-list">
+            <h3>검색 결과 ({places.length}개)</h3>
+            <ul>
+              {places.map(place => (
+                <li key={place.id} className="place-item">
+                  <div onClick={() => handlePlaceClick(place)}>
+                    <h4>{place.name}</h4>
+                    <p>주소: {place.vicinity}</p>
+                    {place.rating ? <p>평점: {place.rating} ⭐</p> : null}
+                  </div>
+                  {user && (
+                    <button 
+                      className="favorite-button"
+                      onClick={() => addToFavorites(place)}
+                    >
+                      즐겨찾기
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : location && !loading && !error ? (
+          <div className="no-results">
+            <p>검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.</p>
+          </div>
+        ) : null
+      )}
     </div>
   );
 };

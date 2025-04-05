@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './PaymentForm.css';
 import PaymentModal from './PaymentModal';
 import { requestPayment, createPaymentData } from '../utils/payment';
+import { savePayment } from '../firebase/firestore';
 
 const PaymentForm = ({ user, onPaymentComplete }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,17 +57,40 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
 
     const paymentData = createPaymentData(orderInfo);
 
-    requestPayment(paymentData, (response) => {
+    requestPayment(paymentData, async (response) => {
       setIsModalOpen(false);
       setIsLoading(false);
 
       if (response.success) {
-        onPaymentComplete({
-          impUid: response.imp_uid,
-          merchantUid: response.merchant_uid,
-          amount: orderInfo.amount,
-          success: true
-        });
+        // Firebase에 결제 정보 저장
+        try {
+          const paymentInfo = {
+            impUid: response.imp_uid,
+            merchantUid: response.merchant_uid,
+            amount: orderInfo.amount,
+            success: true,
+            paymentMethod: orderInfo.paymentMethod,
+            buyerName: orderInfo.name,
+            buyerEmail: orderInfo.email,
+            buyerTel: orderInfo.phone
+          };
+          
+          // Firebase에 결제 내역 저장
+          if (user && user.sub) {
+            await savePayment(user.sub, paymentInfo);
+          }
+          
+          onPaymentComplete(paymentInfo);
+        } catch (error) {
+          console.error('결제 정보 저장 오류:', error);
+          alert('결제는 성공했지만 결제 정보 저장에 실패했습니다.');
+          onPaymentComplete({
+            impUid: response.imp_uid,
+            merchantUid: response.merchant_uid,
+            amount: orderInfo.amount,
+            success: true
+          });
+        }
       } else {
         alert(`결제에 실패했습니다: ${response.error_msg}`);
       }
