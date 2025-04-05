@@ -50,23 +50,19 @@ function App() {
 
   const handleLoginSuccess = async (response) => {
     try {
-      // Firebase로 구글 로그인 처리
-      const firebaseUser = await signInWithGoogle(response.credential);
+      // Firebase Auth에서 반환된 사용자 정보 사용
+      const firebaseUser = response.user || await getCurrentUser();
       
-      // 토큰에서 사용자 정보 추출 (기존 코드 유지)
-      const token = response.credential;
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
+      if (!firebaseUser) {
+        throw new Error('사용자 정보를 가져올 수 없습니다.');
+      }
       
-      const decoded = JSON.parse(jsonPayload);
-      
-      // Firebase 사용자 정보와 토큰 정보를 합쳐서 사용
+      // 사용자 정보 설정
       const userData = {
-        ...decoded,
-        sub: firebaseUser.uid // Firebase UID를 sub로 사용
+        name: firebaseUser.displayName,
+        email: firebaseUser.email,
+        picture: firebaseUser.photoURL,
+        sub: firebaseUser.uid
       };
       
       setUser(userData);

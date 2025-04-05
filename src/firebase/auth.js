@@ -3,11 +3,12 @@ import {
   signInWithCredential, 
   GoogleAuthProvider, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  signInWithPopup
 } from 'firebase/auth';
 import { auth } from './config';
 
-// Google 로그인 처리
+// Google 로그인 처리 (기존 토큰 사용)
 export const signInWithGoogle = async (credential) => {
   try {
     // Google 인증 정보로 Firebase 인증 객체 생성
@@ -18,6 +19,26 @@ export const signInWithGoogle = async (credential) => {
     return userCredential.user;
   } catch (error) {
     console.error('Google 로그인 오류:', error);
+    throw error;
+  }
+};
+
+// Google 로그인 처리 (팝업 사용)
+export const signInWithGooglePopup = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    
+    // 구글 인증 정보에서 ID 토큰 가져오기
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential.idToken;
+    
+    return {
+      user: result.user,
+      token: token
+    };
+  } catch (error) {
+    console.error('Google 팝업 로그인 오류:', error);
     throw error;
   }
 };
