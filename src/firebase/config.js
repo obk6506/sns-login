@@ -1,6 +1,5 @@
 // Firebase 설정
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Firebase 구성 정보
@@ -14,11 +13,10 @@ const firebaseConfig = {
   measurementId: "G-CRXVN9Z30X"
 };
 
-// Firebase 초기화
-const app = initializeApp(firebaseConfig);
+// Firebase 앱 초기화
+export const app = initializeApp(firebaseConfig);
 
-// Firebase 인증 및 Firestore 내보내기
-export const auth = getAuth(app);
+// Firestore 초기화
 export const db = getFirestore(app);
 
-export default app;
+export default { app, db };

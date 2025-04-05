@@ -50,23 +50,15 @@ function App() {
 
   const handleLoginSuccess = async (response) => {
     try {
-      // 기존 토큰 디코딩 방식 유지
-      const token = response.credential;
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      
-      const decoded = JSON.parse(jsonPayload);
-      
       // Firebase 인증 처리
       try {
-        const firebaseUser = await signInWithGoogle(token);
+        const firebaseUser = await signInWithGoogle();
         
         // Firebase UID를 포함한 사용자 정보 설정
         const userData = {
-          ...decoded,
+          name: firebaseUser.displayName,
+          email: firebaseUser.email,
+          picture: firebaseUser.photoURL,
           sub: firebaseUser.uid
         };
         
@@ -77,7 +69,19 @@ function App() {
         setPaymentHistory(payments);
       } catch (firebaseError) {
         console.warn('Firebase 인증 실패, 기본 로그인만 진행:', firebaseError);
-        setUser(decoded);
+        
+        // 기존 토큰 디코딩 방식 유지 (fallback)
+        if (response && response.credential) {
+          const token = response.credential;
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          
+          const decoded = JSON.parse(jsonPayload);
+          setUser(decoded);
+        }
       }
     } catch (error) {
       console.error('로그인 오류:', error);

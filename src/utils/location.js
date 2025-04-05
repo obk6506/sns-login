@@ -33,8 +33,8 @@ export const getCurrentLocation = () => {
           
           // 위치 정보 반환
           resolve({
-            latitude,
-            longitude,
+            lat: latitude,
+            lng: longitude,
             accuracy,
             timestamp: position.timestamp
           });
@@ -57,12 +57,13 @@ export const getCurrentLocation = () => {
             default:
               errorMessage = '알 수 없는 오류가 발생했습니다.';
           }
+          
           reject(new Error(errorMessage));
         },
         options
       );
     };
-
+    
     getPosition();
   });
 };

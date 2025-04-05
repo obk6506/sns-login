@@ -46,10 +46,13 @@ const LocationSearch = ({ user }) => {
     if (!user || !user.sub) return;
     
     try {
+      // Firestore 인덱스 오류 해결을 위해 orderBy 제거
       const places = await getUserFavoritePlaces(user.sub);
       setFavoritePlaces(places);
     } catch (error) {
       console.error('즐겨찾기 장소 로드 오류:', error);
+      // 오류가 발생해도 빈 배열로 설정하여 UI가 깨지지 않도록 함
+      setFavoritePlaces([]);
     }
   };
 
@@ -63,7 +66,6 @@ const LocationSearch = ({ user }) => {
         lat: position.coords.latitude,
         lng: position.coords.longitude
       };
-      
       setLocation(newLocation);
       
       if (googleMapsLoaded) {

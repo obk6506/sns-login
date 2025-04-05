@@ -1,23 +1,37 @@
 // Firebase 인증 관련 함수
 import { 
-  signInWithCredential, 
+  getAuth, 
+  signInWithPopup, 
   GoogleAuthProvider, 
-  signOut, 
-  onAuthStateChanged 
+  signOut,
+  onAuthStateChanged
 } from 'firebase/auth';
-import { auth } from './config';
+import { app } from './config';
 
-// Google 로그인 처리
-export const signInWithGoogle = async (credential) => {
+// Firebase 인증 객체 초기화
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// 구글 로그인 처리
+export const signInWithGoogle = async () => {
   try {
-    // Google 인증 정보로 Firebase 인증 객체 생성
-    const googleCredential = GoogleAuthProvider.credential(null, credential);
+    // 팝업 방식으로 구글 로그인 진행
+    const result = await signInWithPopup(auth, googleProvider);
     
-    // Firebase에 로그인
-    const userCredential = await signInWithCredential(auth, googleCredential);
-    return userCredential.user;
+    // 사용자 정보 반환
+    return result.user;
   } catch (error) {
-    console.error('Google 로그인 오류:', error);
+    console.error('구글 로그인 오류:', error);
+    
+    // 오류 코드에 따른 처리
+    if (error.code === 'auth/popup-closed-by-user') {
+      throw new Error('로그인 창이 사용자에 의해 닫혔습니다.');
+    } else if (error.code === 'auth/popup-blocked') {
+      throw new Error('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.');
+    } else if (error.code === 'auth/unauthorized-domain') {
+      throw new Error('이 도메인에서는 인증이 허용되지 않습니다. Firebase 콘솔에서 도메인을 추가해주세요.');
+    }
+    
     throw error;
   }
 };
@@ -33,7 +47,7 @@ export const logoutUser = async () => {
   }
 };
 
-// 현재 로그인 상태 확인
+// 현재 로그인된 사용자 가져오기
 export const getCurrentUser = () => {
   return new Promise((resolve, reject) => {
     const unsubscribe = onAuthStateChanged(auth, 
@@ -42,6 +56,7 @@ export const getCurrentUser = () => {
         resolve(user);
       },
       (error) => {
+        unsubscribe();
         reject(error);
       }
     );
