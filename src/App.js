@@ -17,7 +17,6 @@ function App() {
 
   const handleLoginSuccess = (response) => {
     const token = response.credential;
-    // 토큰 디코딩
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
@@ -76,14 +75,12 @@ function App() {
               <LogoutButton onLogout={handleLogout} />
             </div>
             
-            {/* 위치 검색 섹션 */}
             {showLocationSearch && (
               <div className="location-section">
                 <LocationSearch />
               </div>
             )}
             
-            {/* 결제 폼 모달 */}
             <PaymentModal 
               isOpen={showPaymentForm} 
               onClose={() => setShowPaymentForm(false)}
@@ -94,7 +91,6 @@ function App() {
               />
             </PaymentModal>
             
-            {/* 결제 완료 모달 */}
             <PaymentModal 
               isOpen={showPaymentComplete} 
               onClose={handleClosePaymentComplete}
