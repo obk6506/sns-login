@@ -25,7 +25,7 @@ function App() {
       try {
         const currentUser = await getCurrentUser();
         if (currentUser) {
-          // Firebase 사용자 정보를 가공하여 앱에서 사용할 형태로 변환
+          // 기존 토큰 디코딩 방식과 호환되는 형태로 사용자 정보 구성
           const userData = {
             name: currentUser.displayName,
             email: currentUser.email,
@@ -50,26 +50,35 @@ function App() {
 
   const handleLoginSuccess = async (response) => {
     try {
-      // Firebase Auth에서 반환된 사용자 정보 사용
-      const firebaseUser = response.user || await getCurrentUser();
+      // 기존 토큰 디코딩 방식 유지
+      const token = response.credential;
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
       
-      if (!firebaseUser) {
-        throw new Error('사용자 정보를 가져올 수 없습니다.');
+      const decoded = JSON.parse(jsonPayload);
+      
+      // Firebase 인증 처리
+      try {
+        const firebaseUser = await signInWithGoogle(token);
+        
+        // Firebase UID를 포함한 사용자 정보 설정
+        const userData = {
+          ...decoded,
+          sub: firebaseUser.uid
+        };
+        
+        setUser(userData);
+        
+        // 결제 내역 가져오기
+        const payments = await getUserPayments(firebaseUser.uid);
+        setPaymentHistory(payments);
+      } catch (firebaseError) {
+        console.warn('Firebase 인증 실패, 기본 로그인만 진행:', firebaseError);
+        setUser(decoded);
       }
-      
-      // 사용자 정보 설정
-      const userData = {
-        name: firebaseUser.displayName,
-        email: firebaseUser.email,
-        picture: firebaseUser.photoURL,
-        sub: firebaseUser.uid
-      };
-      
-      setUser(userData);
-      
-      // 결제 내역 가져오기
-      const payments = await getUserPayments(firebaseUser.uid);
-      setPaymentHistory(payments);
     } catch (error) {
       console.error('로그인 오류:', error);
       alert('로그인에 실패했습니다. 다시 시도해주세요.');
@@ -78,7 +87,14 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
+      // Firebase 로그아웃 시도
+      try {
+        await logoutUser();
+      } catch (firebaseError) {
+        console.warn('Firebase 로그아웃 실패:', firebaseError);
+      }
+      
+      // 상태 초기화
       setUser(null);
       setShowPaymentForm(false);
       setShowPaymentComplete(false);
@@ -97,7 +113,7 @@ function App() {
     setShowPaymentComplete(true);
     
     // 결제 내역 갱신
-    if (user) {
+    if (user && user.sub) {
       getUserPayments(user.sub)
         .then(payments => setPaymentHistory(payments))
         .catch(error => console.error('결제 내역 갱신 오류:', error));

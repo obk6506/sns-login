@@ -62,7 +62,6 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
       setIsLoading(false);
 
       if (response.success) {
-        // Firebase에 결제 정보 저장
         try {
           const paymentInfo = {
             impUid: response.imp_uid,

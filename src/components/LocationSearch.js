@@ -8,9 +8,8 @@ const LocationSearch = ({ user }) => {
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [placeType, setPlaceType] = useState('restaurant');
-  const [searchRadius, setSearchRadius] = useState(1000);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedType, setSelectedType] = useState('restaurant');
+  const [radius, setRadius] = useState(500);
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
@@ -19,18 +18,15 @@ const LocationSearch = ({ user }) => {
   const mapRef = useRef(null);
 
   useEffect(() => {
-    const checkGoogleMapsLoaded = () => {
-      if (window.google && window.google.maps && window.google.maps.places) {
-        setGoogleMapsLoaded(true);
-        setError(null);
-      } else {
-        setTimeout(checkGoogleMapsLoaded, 1000);
-      }
-    };
-
-    checkGoogleMapsLoaded();
+    // 컴포넌트 마운트 시 구글 맵 스크립트 로드
+    if (!window.google) {
+      loadGoogleMapsScript();
+    } else {
+      setGoogleMapsLoaded(true);
+    }
 
     return () => {
+      // 마커 정리
       if (markers.length > 0) {
         markers.forEach(marker => {
           if (marker) marker.setMap(null);
@@ -60,223 +56,207 @@ const LocationSearch = ({ user }) => {
   const fetchLocation = async () => {
     setLoading(true);
     setError(null);
-
+    
     try {
-      const currentLocation = await getCurrentLocation();
-      setLocation(currentLocation);
-
+      const position = await getCurrentLocation();
+      const newLocation = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+      
+      setLocation(newLocation);
+      
       if (googleMapsLoaded) {
-        initMap(currentLocation);
-      } else {
-        setLoading(false);
-        setError('Google Maps API가 로드되지 않았습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해주세요.');
+        initMap(newLocation);
       }
-    } catch (err) {
-      setError(err.message);
+    } catch (error) {
+      setError('위치 정보를 가져오는데 실패했습니다: ' + error.message);
       setLoading(false);
     }
   };
 
-  const initMap = (location) => {
-    if (!window.google || !window.google.maps) {
-      setError('Google Maps API가 로드되지 않았습니다.');
-      setLoading(false);
-      return;
-    }
+  const loadGoogleMapsScript = () => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyC5q3cJgBxHcdn9F6f5eIjEIXxDqYRu4O8&libraries=places&language=ko`;
+    script.async = true;
+    script.defer = true;
+    
+    script.addEventListener('load', () => {
+      setGoogleMapsLoaded(true);
+      if (location) {
+        initMap(location);
+      }
+    });
+    
+    document.head.appendChild(script);
+  };
 
+  const initMap = async (location) => {
     try {
-      const mapOptions = {
-        center: { lat: location.latitude, lng: location.longitude },
+      if (!mapRef.current) return;
+      
+      setLoading(true);
+      
+      // 기존 마커 제거
+      if (markers.length > 0) {
+        markers.forEach(marker => {
+          if (marker) marker.setMap(null);
+        });
+        setMarkers([]);
+      }
+      
+      const newMap = new window.google.maps.Map(mapRef.current, {
+        center: location,
         zoom: 15,
         mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false
-      };
-
-      const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
-
+        streetViewControl: false,
+        fullscreenControl: false
+      });
+      
+      // 현재 위치 마커 추가
       const currentLocationMarker = new window.google.maps.Marker({
-        position: { lat: location.latitude, lng: location.longitude },
+        position: location,
         map: newMap,
         title: '현재 위치',
         icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: '#4285F4',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2
+          url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
         }
       });
-
+      
       setMap(newMap);
-
+      setMarkers([currentLocationMarker]);
+      
+      // 지도 로드 완료 후 주변 장소 검색
       newMap.addListener('tilesloaded', () => {
-        if (!places.length) {
+        if (location) {
           searchNearbyPlaces(location, newMap);
         }
       });
-
     } catch (error) {
       setError('지도를 초기화하는 중 오류가 발생했습니다: ' + error.message);
       setLoading(false);
     }
   };
 
-  const searchNearbyPlaces = (location, mapInstance = null) => {
-    const mapToUse = mapInstance || map;
-
-    if (!window.google || !window.google.maps || !window.google.maps.places || !mapToUse) {
-      setError('Google Maps API가 로드되지 않았습니다.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      markers.forEach(marker => {
+  const searchNearbyPlaces = (location, mapInstance) => {
+    if (!window.google || !mapInstance) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    // 기존 장소 마커 제거 (현재 위치 마커는 유지)
+    if (markers.length > 1) {
+      markers.slice(1).forEach(marker => {
         if (marker) marker.setMap(null);
       });
-      setMarkers([]);
-
-      const service = new window.google.maps.places.PlacesService(mapToUse);
-
-      const request = {
-        location: { lat: location.latitude, lng: location.longitude },
-        radius: searchRadius,
-        type: placeType
-      };
-
-      if (searchKeyword && searchKeyword.trim() !== '') {
-        request.keyword = searchKeyword.trim();
-      }
-
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode(
-        { location: { lat: location.latitude, lng: location.longitude } },
-        (results, status) => {
-          if (status === 'OK' && results[0]) {
-            const addressComponents = results[0].address_components;
-            const dongComponent = addressComponents.find(
-              component => component.types.includes('sublocality_level_2') || 
-                          component.types.includes('sublocality')
-            );
-
-            if (dongComponent) {
-              setLocation(prev => ({
-                ...prev,
-                address: results[0].formatted_address,
-                dong: dongComponent.long_name
-              }));
-            } else {
-              setLocation(prev => ({
-                ...prev,
-                address: results[0].formatted_address
-              }));
-            }
-          }
-        }
-      );
-
-      service.nearbySearch(request, (results, status) => {
-        setLoading(false);
-
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-          const placesData = results.map(place => ({
-            id: place.place_id,
-            name: place.name,
-            vicinity: place.vicinity || place.formatted_address || '주소 정보 없음',
-            rating: place.rating || 0,
-            location: {
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng()
-            },
-            types: place.types || []
-          }));
-
-          setPlaces(placesData);
-
-          const newMarkers = placesData.map(place => {
-            try {
-              const marker = new window.google.maps.Marker({
-                position: { lat: place.location.lat, lng: place.location.lng },
-                map: mapToUse,
-                title: place.name,
-                animation: window.google.maps.Animation.DROP
-              });
-
-              const infoWindow = new window.google.maps.InfoWindow({
-                content: `
-                  <div>
-                    <h3>${place.name}</h3>
-                    <p>${place.vicinity}</p>
-                    ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
-                  </div>
-                `
-              });
-
-              marker.addListener('click', () => {
-                infoWindow.open(mapToUse, marker);
-              });
-
-              return marker;
-            } catch (err) {
-              return null;
-            }
-          }).filter(marker => marker !== null);
-
-          setMarkers(newMarkers);
-
-        } else {
-          if (status === 'ZERO_RESULTS') {
-            setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
-          } else {
-            setError('주변 장소를 찾을 수 없습니다. 상태: ' + status);
-          }
-          setPlaces([]);
-        }
-      });
-    } catch (error) {
-      setError('장소 검색 중 오류가 발생했습니다: ' + error.message);
-      setLoading(false);
+      setMarkers([markers[0]]);
     }
-  };
+    
+    const service = new window.google.maps.places.PlacesService(mapInstance);
+    
+    const request = {
+      location: location,
+      radius: radius,
+      type: selectedType
+    };
+    
+    service.nearbySearch(request, (results, status) => {
+      setLoading(false);
+      
+      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+        // 결과 처리
+        const placesData = results.map(place => ({
+          id: place.place_id,
+          name: place.name,
+          vicinity: place.vicinity,
+          location: {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+          },
+          rating: place.rating,
+          types: place.types
+        }));
+        
+        setPlaces(placesData);
+        
+        // 마커 추가
+        const newMarkers = placesData.map(place => {
+          try {
+            const marker = new window.google.maps.Marker({
+              position: place.location,
+              map: mapInstance,
+              title: place.name
+            });
+            
+            // 마커 클릭 이벤트
+            marker.addListener('click', () => {
+              handlePlaceClick(place);
+            });
+            
+            return marker;
+          } catch (error) {
+            console.error('마커 생성 오류:', error);
+            return null;
+          }
+        }).filter(marker => marker !== null);
 
-  const handlePlaceTypeChange = (e) => {
-    setPlaceType(e.target.value);
-  };
-
-  const handleRadiusChange = (e) => {
-    setSearchRadius(parseInt(e.target.value, 10));
-  };
-
-  const handleKeywordChange = (e) => {
-    setSearchKeyword(e.target.value);
+        setMarkers([markers[0], ...newMarkers]);
+      } else {
+        if (status === 'ZERO_RESULTS') {
+          setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
+        } else {
+          setError('장소 검색 중 오류가 발생했습니다: ' + status);
+        }
+        setPlaces([]);
+      }
+    });
   };
 
   const handleSearch = () => {
     if (location && map) {
-      setLoading(true);
-      searchNearbyPlaces(location);
-    } else if (location && !map) {
-      setLoading(true);
-      initMap(location);
+      searchNearbyPlaces(location, map);
+    } else {
+      fetchLocation();
     }
   };
 
+  const handleTypeChange = (e) => {
+    setSelectedType(e.target.value);
+  };
+
+  const handleRadiusChange = (e) => {
+    setRadius(parseInt(e.target.value, 10));
+  };
+
   const handlePlaceClick = (place) => {
-    if (map) {
-      map.setCenter({ lat: place.location.lat, lng: place.location.lng });
-      map.setZoom(17);
-
-      const marker = markers.find(m => m && m.getTitle() === place.name);
-      if (marker) {
-        marker.setAnimation(window.google.maps.Animation.BOUNCE);
-        setTimeout(() => {
-          marker.setAnimation(null);
-        }, 1500);
-
-        window.google.maps.event.trigger(marker, 'click');
-      }
+    if (!map) return;
+    
+    // 선택한 장소로 지도 이동
+    map.setCenter(place.location);
+    map.setZoom(17);
+    
+    // 해당 마커 찾기
+    const marker = markers.find(m => m && m.getTitle() === place.name);
+    
+    if (marker) {
+      // 마커 애니메이션
+      marker.setAnimation(window.google.maps.Animation.BOUNCE);
+      setTimeout(() => {
+        marker.setAnimation(null);
+      }, 1500);
+      
+      // 정보창 표시
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div class="info-window">
+            <h3>${place.name}</h3>
+            <p>${place.vicinity}</p>
+            ${place.rating ? `<p>평점: ${place.rating} ⭐</p>` : ''}
+          </div>
+        `
+      });
+      
+      infoWindow.open(map, marker);
     }
   };
 
@@ -324,66 +304,59 @@ const LocationSearch = ({ user }) => {
   return (
     <div className="location-search">
       <h2>내 주변 장소 찾기</h2>
-
-      <div className="search-options">
-        <div className="search-option">
-          <label>장소 유형:</label>
-          <select value={placeType} onChange={handlePlaceTypeChange}>
-            <option value="restaurant">음식점</option>
+      
+      <div className="search-controls">
+        <div className="control-group">
+          <label htmlFor="placeType">장소 유형:</label>
+          <select 
+            id="placeType" 
+            value={selectedType} 
+            onChange={handleTypeChange}
+          >
+            <option value="restaurant">식당</option>
             <option value="cafe">카페</option>
+            <option value="bar">술집</option>
             <option value="convenience_store">편의점</option>
-            <option value="hospital">병원</option>
-            <option value="pharmacy">약국</option>
-            <option value="bank">은행</option>
-            <option value="atm">ATM</option>
-            <option value="gas_station">주유소</option>
+            <option value="shopping_mall">쇼핑몰</option>
+            <option value="movie_theater">영화관</option>
+            <option value="park">공원</option>
             <option value="subway_station">지하철역</option>
             <option value="bus_station">버스정류장</option>
-            <option value="shopping_mall">쇼핑몰</option>
-            <option value="park">공원</option>
-            <option value="veterinary_care">동물병원</option>
           </select>
         </div>
-
-        <div className="search-option">
-          <label>검색 반경 (m):</label>
-          <select value={searchRadius} onChange={handleRadiusChange}>
+        
+        <div className="control-group">
+          <label htmlFor="searchRadius">검색 반경:</label>
+          <select 
+            id="searchRadius" 
+            value={radius} 
+            onChange={handleRadiusChange}
+          >
+            <option value="300">300m</option>
             <option value="500">500m</option>
             <option value="1000">1km</option>
             <option value="2000">2km</option>
             <option value="5000">5km</option>
           </select>
         </div>
-
-        <div className="search-option">
-          <label>키워드 (선택사항):</label>
-          <input 
-            type="text" 
-            value={searchKeyword} 
-            onChange={handleKeywordChange}
-            placeholder="예: 맛집, 24시간"
-          />
-        </div>
-      </div>
-
-      <div className="button-container">
+        
         <button 
-          onClick={location ? handleSearch : fetchLocation} 
-          disabled={loading}
+          onClick={handleSearch}
           className="search-button"
+          disabled={loading}
         >
-          {loading ? '검색 중...' : location ? '다시 검색하기' : '내 주변 검색하기'}
+          {loading ? '검색 중...' : '검색하기'}
         </button>
-
-        {location && map && (
+        
+        {location && (
           <button 
             onClick={() => {
-              if (map) {
-                map.setCenter({ lat: location.latitude, lng: location.longitude });
+              if (map && location) {
+                map.setCenter(location);
                 map.setZoom(15);
               }
             }}
-            className="center-button"
+            className="return-button"
           >
             현재 위치로 돌아가기
           </button>
@@ -402,16 +375,6 @@ const LocationSearch = ({ user }) => {
       {error && (
         <div className="error-message">
           <p>{error}</p>
-          {error.includes('위치 정보') && <p>위치 정보 접근 권한을 허용해주세요.</p>}
-        </div>
-      )}
-
-      {location && (
-        <div className="location-info">
-          <p>현재 위치: 위도 {location.latitude.toFixed(6)}, 경도 {location.longitude.toFixed(6)}</p>
-          {location.accuracy && <p>정확도: {Math.round(location.accuracy)}m</p>}
-          {location.dong && <p>동네: {location.dong}</p>}
-          {location.address && <p>주소: {location.address}</p>}
         </div>
       )}
 
