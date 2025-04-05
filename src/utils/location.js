@@ -24,12 +24,15 @@ export const getCurrentLocation = () => {
           const { latitude, longitude, accuracy } = position.coords;
           
           // 정확도가 너무 낮으면(값이 클수록 정확도 낮음) 다시 시도
-          if (accuracy > 1000 && attempts < maxAttempts) {
+          // 하지만 3번 시도 후에도 정확도가 낮으면 그대로 진행
+          if (accuracy > 1000 && attempts < maxAttempts - 1) {
             console.log(`위치 정보 정확도가 낮습니다(${Math.round(accuracy)}m). 다시 시도 중... (${attempts + 1}/${maxAttempts})`);
             attempts++;
             setTimeout(getPosition, 2000); // 2초 후 다시 시도
             return;
           }
+          
+          console.log(`위치 정보 획득 완료: 위도 ${latitude}, 경도 ${longitude}, 정확도 ${Math.round(accuracy)}m`);
           
           // 위치 정보 반환
           resolve({
@@ -56,6 +59,19 @@ export const getCurrentLocation = () => {
               break;
             default:
               errorMessage = '알 수 없는 오류가 발생했습니다.';
+          }
+          
+          // 기본 위치 정보 제공 (서울 시청)
+          if (attempts >= maxAttempts - 1) {
+            console.log('위치 정보를 가져올 수 없어 기본 위치(서울 시청)를 사용합니다.');
+            resolve({
+              lat: 37.5666805,
+              lng: 126.9784147,
+              accuracy: 1000,
+              timestamp: new Date().getTime(),
+              isDefault: true
+            });
+            return;
           }
           
           reject(new Error(errorMessage));

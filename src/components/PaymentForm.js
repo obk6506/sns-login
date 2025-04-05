@@ -24,14 +24,24 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
       script.async = true;
       script.onload = () => {
         if (window.IMP) {
-          window.IMP.init('imp57468437');
+          window.IMP.init('imp57468437'); // 아임포트 가맹점 식별코드
+          console.log('아임포트 초기화 완료');
         }
       };
       document.head.appendChild(script);
     };
 
     loadImpScript();
-  }, []);
+    
+    // 사용자 정보가 변경되면 주문 정보 업데이트
+    if (user) {
+      setOrderInfo(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || ''
+      }));
+    }
+  }, [user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -52,14 +62,24 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
       return;
     }
 
+    if (!window.IMP) {
+      alert('결제 모듈이 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+      return;
+    }
+
     setIsLoading(true);
     setIsModalOpen(true);
 
     const paymentData = createPaymentData(orderInfo);
+    
+    // 디버깅을 위한 로그
+    console.log('결제 요청 데이터:', paymentData);
 
     requestPayment(paymentData, async (response) => {
       setIsModalOpen(false);
       setIsLoading(false);
+      
+      console.log('결제 응답:', response);
 
       if (response.success) {
         try {
@@ -74,14 +94,24 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
             buyerTel: orderInfo.phone
           };
           
+          console.log('Firebase에 저장할 결제 정보:', paymentInfo);
+          
           // Firebase에 결제 내역 저장
           if (user && user.sub) {
-            await savePayment(user.sub, paymentInfo);
+            try {
+              await savePayment(user.sub, paymentInfo);
+              console.log('결제 정보가 Firebase에 저장되었습니다.');
+            } catch (saveError) {
+              console.error('Firebase 결제 정보 저장 오류:', saveError);
+              // 저장 실패해도 결제 완료 처리는 진행
+            }
+          } else {
+            console.warn('사용자 정보가 없어 결제 내역을 저장할 수 없습니다.');
           }
           
           onPaymentComplete(paymentInfo);
         } catch (error) {
-          console.error('결제 정보 저장 오류:', error);
+          console.error('결제 정보 처리 오류:', error);
           alert('결제는 성공했지만 결제 정보 저장에 실패했습니다.');
           onPaymentComplete({
             impUid: response.imp_uid,
@@ -91,6 +121,7 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
           });
         }
       } else {
+        console.error('결제 실패:', response.error_msg);
         alert(`결제에 실패했습니다: ${response.error_msg}`);
       }
     });
@@ -99,55 +130,58 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
   return (
     <div className="payment-form">
       <h2>결제 정보</h2>
-      
       <div className="form-group">
-        <label>이름 *</label>
+        <label htmlFor="name">이름</label>
         <input
           type="text"
+          id="name"
           name="name"
           value={orderInfo.name}
           onChange={handleChange}
           required
         />
       </div>
-      
       <div className="form-group">
-        <label>이메일 *</label>
+        <label htmlFor="email">이메일</label>
         <input
           type="email"
+          id="email"
           name="email"
           value={orderInfo.email}
           onChange={handleChange}
           required
         />
       </div>
-      
       <div className="form-group">
-        <label>전화번호 *</label>
+        <label htmlFor="phone">전화번호</label>
         <input
           type="tel"
+          id="phone"
           name="phone"
           value={orderInfo.phone}
           onChange={handleChange}
+          placeholder="010-0000-0000"
           required
         />
       </div>
-      
       <div className="form-group">
-        <label>결제 금액 (원)</label>
-        <input
-          type="number"
+        <label htmlFor="amount">결제 금액</label>
+        <select
+          id="amount"
           name="amount"
           value={orderInfo.amount}
           onChange={handleChange}
-          min="1000"
-          required
-        />
+        >
+          <option value="5000">5,000원</option>
+          <option value="10000">10,000원</option>
+          <option value="20000">20,000원</option>
+          <option value="50000">50,000원</option>
+        </select>
       </div>
-      
       <div className="form-group">
-        <label>결제 방법</label>
+        <label htmlFor="paymentMethod">결제 수단</label>
         <select
+          id="paymentMethod"
           name="paymentMethod"
           value={orderInfo.paymentMethod}
           onChange={handleChange}
@@ -158,19 +192,21 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
           <option value="phone">휴대폰 소액결제</option>
         </select>
       </div>
-      
-      <button 
+      <button
         className="payment-button"
         onClick={handlePayment}
         disabled={isLoading}
       >
         {isLoading ? '처리 중...' : '결제하기'}
       </button>
-
-      <PaymentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="payment-modal-content">
-          <h3>결제 진행 중...</h3>
-          <p>결제 창이 나타나지 않으면 팝업 차단 설정을 확인해주세요.</p>
+      
+      <PaymentModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      >
+        <div className="payment-loading">
+          <p>결제를 처리 중입니다...</p>
+          <p>잠시만 기다려주세요.</p>
         </div>
       </PaymentModal>
     </div>

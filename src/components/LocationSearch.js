@@ -62,14 +62,11 @@ const LocationSearch = ({ user }) => {
     
     try {
       const position = await getCurrentLocation();
-      const newLocation = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-      };
-      setLocation(newLocation);
+      // getCurrentLocation에서 이미 lat, lng 형태로 반환하므로 변환 불필요
+      setLocation(position);
       
       if (googleMapsLoaded) {
-        initMap(newLocation);
+        initMap(position);
       }
     } catch (error) {
       setError('위치 정보를 가져오는데 실패했습니다: ' + error.message);
@@ -80,6 +77,7 @@ const LocationSearch = ({ user }) => {
   const loadGoogleMapsScript = () => {
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyC5q3cJgBxHcdn9F6f5eIjEIXxDqYRu4O8&libraries=places&language=ko`;
+    // 경고 해결을 위해 async 속성 추가
     script.async = true;
     script.defer = true;
     
@@ -129,19 +127,20 @@ const LocationSearch = ({ user }) => {
       setMarkers([currentLocationMarker]);
       
       // 지도 로드 완료 후 주변 장소 검색
-      newMap.addListener('tilesloaded', () => {
-        if (location) {
-          searchNearbyPlaces(location, newMap);
-        }
-      });
+      searchNearbyPlaces(location, newMap);
     } catch (error) {
+      console.error('지도 초기화 오류:', error);
       setError('지도를 초기화하는 중 오류가 발생했습니다: ' + error.message);
       setLoading(false);
     }
   };
 
   const searchNearbyPlaces = (location, mapInstance) => {
-    if (!window.google || !mapInstance) return;
+    if (!window.google || !mapInstance) {
+      console.error('Google Maps API가 로드되지 않았거나 지도 인스턴스가 없습니다.');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -154,64 +153,85 @@ const LocationSearch = ({ user }) => {
       setMarkers([markers[0]]);
     }
     
-    const service = new window.google.maps.places.PlacesService(mapInstance);
-    
-    const request = {
-      location: location,
-      radius: radius,
-      type: selectedType
-    };
-    
-    service.nearbySearch(request, (results, status) => {
-      setLoading(false);
+    try {
+      const service = new window.google.maps.places.PlacesService(mapInstance);
       
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        // 결과 처리
-        const placesData = results.map(place => ({
-          id: place.place_id,
-          name: place.name,
-          vicinity: place.vicinity,
-          location: {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng()
-          },
-          rating: place.rating,
-          types: place.types
-        }));
+      const request = {
+        location: location,
+        radius: radius,
+        type: selectedType
+      };
+      
+      service.nearbySearch(request, (results, status) => {
+        setLoading(false);
         
-        setPlaces(placesData);
-        
-        // 마커 추가
-        const newMarkers = placesData.map(place => {
-          try {
-            const marker = new window.google.maps.Marker({
-              position: place.location,
-              map: mapInstance,
-              title: place.name
-            });
-            
-            // 마커 클릭 이벤트
-            marker.addListener('click', () => {
-              handlePlaceClick(place);
-            });
-            
-            return marker;
-          } catch (error) {
-            console.error('마커 생성 오류:', error);
-            return null;
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+          // 결과 처리
+          const placesData = results.map(place => {
+            try {
+              return {
+                id: place.place_id,
+                name: place.name,
+                vicinity: place.vicinity,
+                location: {
+                  lat: place.geometry.location.lat(),
+                  lng: place.geometry.location.lng()
+                },
+                rating: place.rating || 0,
+                types: place.types || []
+              };
+            } catch (err) {
+              console.error('장소 데이터 처리 오류:', err, place);
+              return null;
+            }
+          }).filter(place => place !== null);
+          
+          setPlaces(placesData);
+          
+          // 마커 추가
+          const newMarkers = [];
+          const currentLocationMarker = markers.length > 0 ? markers[0] : null;
+          
+          placesData.forEach(place => {
+            try {
+              const marker = new window.google.maps.Marker({
+                position: place.location,
+                map: mapInstance,
+                title: place.name
+              });
+              
+              // 마커 클릭 이벤트
+              marker.addListener('click', () => {
+                handlePlaceClick(place);
+              });
+              
+              newMarkers.push(marker);
+            } catch (error) {
+              console.error('마커 생성 오류:', error);
+            }
+          });
+          
+          // 현재 위치 마커와 함께 모든 마커 설정
+          if (currentLocationMarker) {
+            setMarkers([currentLocationMarker, ...newMarkers]);
+          } else {
+            setMarkers(newMarkers);
           }
-        }).filter(marker => marker !== null);
-
-        setMarkers([markers[0], ...newMarkers]);
-      } else {
-        if (status === 'ZERO_RESULTS') {
-          setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
         } else {
-          setError('장소 검색 중 오류가 발생했습니다: ' + status);
+          if (status === 'ZERO_RESULTS') {
+            setError('검색 결과가 없습니다. 다른 장소 유형이나 더 넓은 반경으로 검색해보세요.');
+          } else {
+            console.error('장소 검색 오류:', status);
+            setError('장소 검색 중 오류가 발생했습니다: ' + status);
+          }
+          setPlaces([]);
         }
-        setPlaces([]);
-      }
-    });
+      });
+    } catch (error) {
+      console.error('장소 검색 실행 오류:', error);
+      setError('장소 검색을 실행하는 중 오류가 발생했습니다: ' + error.message);
+      setLoading(false);
+    }
   };
 
   const handleSearch = () => {
