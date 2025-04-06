@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import './PaymentForm.css';
 import PaymentModal from './PaymentModal';
 import { requestPayment, createPaymentData } from '../utils/payment';
+// import { savePaymentToSupabase } from '../utils/paymentUtils';
 
 const PaymentForm = ({ user, onPaymentComplete }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [savingToDb, setSavingToDb] = useState(false);
   const [orderInfo, setOrderInfo] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -56,18 +58,36 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
 
     const paymentData = createPaymentData(orderInfo);
 
-    requestPayment(paymentData, (response) => {
+    requestPayment(paymentData, async (response) => {
       setIsModalOpen(false);
-      setIsLoading(false);
-
+      
       if (response.success) {
-        onPaymentComplete({
-          impUid: response.imp_uid,
-          merchantUid: response.merchant_uid,
-          amount: orderInfo.amount,
-          success: true
-        });
+        // 결제 성공 시 Supabase에 저장 (임시로 비활성화)
+        setSavingToDb(true);
+        try {
+          const paymentInfo = {
+            amount: orderInfo.amount,
+            cardInfo: `${response.imp_uid} (${orderInfo.paymentMethod})`,
+          };
+          
+          console.log('결제 정보 저장 (임시):', paymentInfo);
+          // await savePaymentToSupabase(paymentInfo, user.email);
+          
+          onPaymentComplete({
+            impUid: response.imp_uid,
+            merchantUid: response.merchant_uid,
+            amount: orderInfo.amount,
+            success: true
+          });
+        } catch (error) {
+          console.error('결제 정보 저장 오류:', error);
+          alert(`결제는 성공했지만 데이터베이스 저장에 실패했습니다: ${error.message}`);
+        } finally {
+          setSavingToDb(false);
+          setIsLoading(false);
+        }
       } else {
+        setIsLoading(false);
         alert(`결제에 실패했습니다: ${response.error_msg}`);
       }
     });
@@ -139,9 +159,9 @@ const PaymentForm = ({ user, onPaymentComplete }) => {
       <button 
         className="payment-button"
         onClick={handlePayment}
-        disabled={isLoading}
+        disabled={isLoading || savingToDb}
       >
-        {isLoading ? '처리 중...' : '결제하기'}
+        {isLoading ? '결제 처리 중...' : savingToDb ? '정보 저장 중...' : '결제하기'}
       </button>
 
       <PaymentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getCurrentLocation } from '../utils/location';
+// import { saveLocationToSupabase, deleteLocation } from '../utils/locationUtils';
 import './LocationSearch.css';
 
-const LocationSearch = () => {
+const LocationSearch = ({ user, onLocationSaved }) => {
   const [location, setLocation] = useState(null);
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,6 +14,8 @@ const LocationSearch = () => {
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [savingLocation, setSavingLocation] = useState(false);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -254,6 +257,40 @@ const LocationSearch = () => {
 
         window.google.maps.event.trigger(marker, 'click');
       }
+      
+      setSelectedPlace(place);
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!selectedPlace || !user || !user.email) {
+      setError('위치를 선택하고 로그인 상태여야 합니다.');
+      return;
+    }
+    
+    setSavingLocation(true);
+    try {
+      const locationData = {
+        name: selectedPlace.name,
+        address: selectedPlace.vicinity,
+        lat: selectedPlace.location.lat,
+        lng: selectedPlace.location.lng,
+      };
+      
+      console.log('위치 정보 저장 (임시):', locationData);
+      // await saveLocationToSupabase(locationData, user.email);
+      
+      // 부모 컴포넌트에 위치 저장 완료 알림
+      if (onLocationSaved) {
+        onLocationSaved();
+      }
+      
+      setSelectedPlace(null);
+      alert('위치가 성공적으로 저장되었습니다! (테스트 모드)');
+    } catch (error) {
+      setError('위치 저장 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+      setSavingLocation(false);
     }
   };
 
@@ -351,13 +388,30 @@ const LocationSearch = () => {
           <h3>검색 결과 ({places.length}개)</h3>
           <ul>
             {places.map(place => (
-              <li key={place.id} className="place-item" onClick={() => handlePlaceClick(place)}>
+              <li 
+                key={place.id} 
+                className={`place-item ${selectedPlace && selectedPlace.id === place.id ? 'selected' : ''}`} 
+                onClick={() => handlePlaceClick(place)}
+              >
                 <h4>{place.name}</h4>
                 <p>주소: {place.vicinity}</p>
                 {place.rating ? <p>평점: {place.rating} ⭐</p> : null}
               </li>
             ))}
           </ul>
+          
+          {selectedPlace && user && (
+            <div className="save-location-container">
+              <h4>선택된 장소: {selectedPlace.name}</h4>
+              <button 
+                onClick={handleSaveLocation} 
+                disabled={savingLocation}
+                className="save-location-button"
+              >
+                {savingLocation ? '저장 중...' : '이 위치 저장하기'}
+              </button>
+            </div>
+          )}
         </div>
       ) : location && !loading && !error ? (
         <div className="no-results">
