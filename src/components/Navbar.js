@@ -1,6 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
-import { FaSearch, FaShoppingCart, FaUser } from 'react-icons/fa';
+import { FaSearch, FaShoppingCart } from 'react-icons/fa';
+import LoginButton from './LoginButton';
+import LogoutButton from './LogoutButton';
 
 const NavbarContainer = styled.nav`
   display: flex;
@@ -54,7 +56,21 @@ const IconLink = styled.a`
   }
 `;
 
-const Navbar = () => {
+const UserInfoContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ProfilePic = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #C1DCDC;
+`;
+
+const Navbar = ({ user, onLoginSuccess, onLogout }) => {
   return (
     <NavbarContainer>
       <Logo>
@@ -69,7 +85,16 @@ const Navbar = () => {
       <NavIcons>
         <IconLink href="#"><FaSearch /></IconLink>
         <IconLink href="#"><FaShoppingCart /></IconLink>
-        <IconLink href="#"><FaUser /></IconLink>
+        {user ? (
+          <UserInfoContainer>
+            {user.picture && (
+              <ProfilePic src={user.picture} alt="Profile" title={user.name}/>
+            )}
+            <LogoutButton onLogout={onLogout} />
+          </UserInfoContainer>
+        ) : (
+          <LoginButton onLoginSuccess={onLoginSuccess} />
+        )}
       </NavIcons>
     </NavbarContainer>
   );

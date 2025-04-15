@@ -6,9 +6,6 @@ import Bestsellers from './components/Bestsellers';
 import Categories from './components/Categories';
 import SpecialOffer from './components/SpecialOffer';
 import Footer from './components/Footer';
-import LoginButton from './components/LoginButton';
-import LogoutButton from './components/LogoutButton';
-import Profile from './components/Profile';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -49,15 +46,19 @@ function App() {
   return (
     <GlobalStyles>
       <Container>
-        <Navbar />
-        {user ? (
+        <Navbar 
+          user={user}
+          onLoginSuccess={handleLoginSuccess}
+          onLogout={handleLogout}
+        />
+        {/* {user ? (
           <>
             <Profile user={user} />
             <LogoutButton onLogout={handleLogout} />
           </>
         ) : (
           <LoginButton onLoginSuccess={handleLoginSuccess} />
-        )}
+        )} */}
         <Hero />
         <Bestsellers />
         <Categories />
