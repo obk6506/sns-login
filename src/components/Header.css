@@ -1,0 +1,61 @@
+.header {
+    padding: 20px 0;
+    background-color: var(--background-color);
+  }
+  
+  .header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .logo img {
+    height: 40px;
+  }
+  
+  .nav-menu ul {
+    display: flex;
+    list-style: none;
+    gap: 30px;
+  }
+  
+  .nav-menu a {
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: 500;
+    font-size: 16px;
+    transition: color 0.3s ease;
+  }
+  
+  .nav-menu a:hover {
+    color: var(--secondary-color);
+  }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text-color);
+  }
+
+  .auth-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .google-login-button {
+    height: 40px;
+  }
+  
+  .logout-btn {
+    padding: 8px 15px;
+    font-size: 14px;
+  }

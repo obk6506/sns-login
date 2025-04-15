@@ -1,0 +1,43 @@
+.hero {
+    padding: 60px 0;
+    background-color: var(--background-color);
+  }
+  
+  .hero-content {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+  }
+  
+  .hero-text {
+    flex: 1;
+  }
+  
+  .hero-text h1 {
+    font-family: 'Lora', serif;
+    font-size: 56px;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-bottom: 20px;
+  }
+  
+  .hero-text p {
+    font-size: 18px;
+    line-height: 1.5;
+    margin-bottom: 30px;
+    color: #4a4a4a;
+  }
+  
+  .hero-buttons {
+    display: flex;
+    gap: 15px;
+  }
+  
+  .hero-image {
+    flex: 1;
+  }
+  
+  .hero-image img {
+    width: 100%;
+    border-radius: 20px;
+  }
